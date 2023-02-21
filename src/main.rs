@@ -1,22 +1,27 @@
 use std::env;
-// use std::path::Path;
 
+use std::net::TcpListener;
 
-// use execute::Execute;
+use tracing_subscriber::filter::LevelFilter;
+
+use tracing::info;
 
 mod patch_pe;
 
 fn main() {
 
+    let subscriber = tracing_subscriber::fmt()
+        .with_max_level(LevelFilter::DEBUG)
+        .finish();
+
+    tracing::subscriber::set_global_default(subscriber).unwrap_or_else(|error| {
+        panic!("Failed to init tracing: {error}")
+    });
+
     let args: Vec<String> = env::args().collect();
 
-    println!("{:?}", args);
+    info!("{:?}", args);
 
-    // let zoo_directory = Path::new("../zt_files");
-
-    // env::set_current_dir(zoo_directory).unwrap();
-
-    // patch_pe::print_pe().unwrap();
 
     #[cfg(target_os = "windows")]
     {
@@ -26,40 +31,45 @@ fn main() {
         use winapi::um::winbase::{CREATE_SUSPENDED, DETACHED_PROCESS};
         use std::os::windows::io::AsRawHandle;
         use dll_syringe::Syringe;
-        use dll_syringe::process::{OwnedProcess, Process};
+        use dll_syringe::process::{OwnedProcess};
 
-        println!("Windows");
-        // const CREATE_SUSPENDED: u32 = 0x00000004;
-        // const DETACHED_PROCESS: u32 = 0x00000008;
+        info!("Windows");
         const CREATE_FLAGS: u32 = CREATE_SUSPENDED | DETACHED_PROCESS;
         const ZOO_PATH : &str = "C:\\Program Files (x86)\\Microsoft Games\\Zoo Tycoon\\zoo.exe";
         let command: OwnedProcess = Command::new(ZOO_PATH).creation_flags(CREATE_FLAGS).spawn().unwrap().into();
-        // command.creation_flags(CREATE_SUSPENDED);
 
-        // command.spawn().unwrap();
+        info!("Process spawned");
 
-        println!("{CREATE_SUSPENDED} {DETACHED_PROCESS} {CREATE_FLAGS}");
-        println!("Process spawned");
+        let listener = TcpListener::bind("127.0.0.1:1492").unwrap();
 
-        // let mut process: OwnedProcess = command.into();
-
-        // let mut syringe = Syringe::for_process(command.as_handle().as_raw() as u32);
         let syringe = Syringe::for_process(command);
-        let injected_payload = syringe.inject("../openzt/target/i686-pc-windows-msvc/release/openzt.dll").unwrap();
+        let _injected_payload = syringe.inject("../openzt/target/i686-pc-windows-msvc/release/openzt.dll").unwrap();
 
-        println!("Dll Injected");
+        info!("Dll Injected");
 
-        // syringe.eject(injected_payload).unwrap();
+        let mut stream = match listener.accept() {
+            Ok((stream, addr)) => {
+                info!(%addr, "Accepted connection from");
+                stream
+            },
+            Err(error) => panic!("Log stream failed to connect: {error}")
+        };
 
-    //     unsafe {
-    //         ResumeThread(syringe.process().as_raw_handle());
-    //     }
+        unsafe {
+            ResumeThread(syringe.process().as_raw_handle());
+        }
         
-    //     println!("Thread Resumed");
+        info!("Thread Resumed");
+
+        match std::io::copy(&mut stream, &mut std::io::stdout()) {
+            Ok(_) => (),
+            Err(e) => info!("Logging Stream Closed: {e}")
+        };
+
     }
     #[cfg(not(target_os = "windows"))]
     {
-        println!("Not Windows");
+        info!("Not Windows");
     }
 
 }
