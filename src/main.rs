@@ -1,5 +1,3 @@
-use std::env;
-
 use std::net::TcpListener;
 
 use tracing_subscriber::filter::LevelFilter;
