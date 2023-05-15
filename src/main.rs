@@ -1,4 +1,4 @@
-use std::net::TcpListener;
+use std::net::{TcpListener, TcpStream};
 
 use tracing_subscriber::filter::LevelFilter;
 
@@ -26,6 +26,10 @@ use {
 struct Args {
     #[arg(short, long, default_value = "false")]
     resume: bool,
+    #[arg(short, long, default_value = "false")]
+    listen: bool,
+    #[arg(short, long, default_value = "../openzt/target/i686-pc-windows-msvc/release/openzt.dll")]
+    dll_path: String,
 }
 
 fn main() {
@@ -47,34 +51,34 @@ fn main() {
         const CREATE_FLAGS: u32 = CREATE_SUSPENDED | DETACHED_PROCESS;
         const ZOO_PATH : &str = "C:\\Program Files (x86)\\Microsoft Games\\Zoo Tycoon\\zoo.exe";
         let command: OwnedProcess = Command::new(ZOO_PATH).creation_flags(CREATE_FLAGS).spawn().unwrap().into();
-
         info!("Process spawned");
 
         let listener = TcpListener::bind("127.0.0.1:1492").unwrap();
 
+
         let syringe = Syringe::for_process(command);
-        let _injected_payload = syringe.inject("../openzt/target/i686-pc-windows-msvc/release/openzt.dll").unwrap();
+        let _injected_payload = syringe.inject(args.dll_path).unwrap();
 
         info!("Dll Injected");
 
-        let mut stream = match listener.accept() {
-            Ok((stream, addr)) => {
-                info!(%addr, "Accepted connection from");
-                stream
-            },
-            Err(error) => panic!("Log stream failed to connect: {error}")
-        };
-        
         if args.resume {
             resume_threads(syringe.process().pid().unwrap().into());
+            info!("Thread Resumed");
         }
-        
-        info!("Thread Resumed");
 
-        match std::io::copy(&mut stream, &mut std::io::stdout()) {
-            Ok(_) => (),
-            Err(e) => info!("Logging Stream Closed: {e}")
-        };
+        if args.listen {
+            let mut stream = match listener.accept() {
+                Ok((stream, addr)) => {
+                    info!(%addr, "Accepted connection from");
+                    stream
+                },
+                Err(error) => panic!("Log stream failed to connect: {error}")
+            };
+            match std::io::copy(&mut stream, &mut std::io::stdout()) {
+                Ok(_) => (),
+                Err(e) => info!("Logging Stream Closed: {e}")
+            };
+        }
 
     }
     #[cfg(not(target_os = "windows"))]
