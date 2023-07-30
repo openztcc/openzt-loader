@@ -1,4 +1,4 @@
-use std::net::{TcpListener, TcpStream};
+use std::net::TcpListener;
 
 use tracing_subscriber::filter::LevelFilter;
 
@@ -24,11 +24,11 @@ use {
 
 #[derive(Parser, Debug)]
 struct Args {
-    #[arg(short, long, default_value = "false")]
+    #[arg(short, long, default_value = "true")]
     resume: bool,
     #[arg(short, long, default_value = "false")]
     listen: bool,
-    #[arg(short, long, default_value = "../openzt/target/i686-pc-windows-msvc/release/openzt.dll")]
+    #[arg(short, long, default_value = "target/i686-pc-windows-msvc/release/deps/openzt.dll")]
     dll_path: String,
 }
 

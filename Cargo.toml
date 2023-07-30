@@ -12,3 +12,4 @@ winapi = {version = "0.3.8", features = ["tlhelp32"]}
 tracing-subscriber = "0.3.16"
 tracing = "0.1.37"
 clap = { version = "4.1.8", features = ["derive"] }
+openzt = { path = "../openzt" }
