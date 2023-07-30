@@ -14,7 +14,7 @@ use {
     winapi::um::tlhelp32::{CreateToolhelp32Snapshot, Thread32First, Thread32Next, THREADENTRY32, TH32CS_SNAPTHREAD},
     winapi::um::processthreadsapi::{OpenThread, ResumeThread},
     winapi::um::winnt::{THREAD_QUERY_INFORMATION, THREAD_SUSPEND_RESUME},
-    winapi::shared::minwindef::{DWORD},
+    winapi::shared::minwindef::DWORD,
     std::process::Command,
     std::os::windows::process::CommandExt,
     winapi::um::winbase::{CREATE_SUSPENDED, DETACHED_PROCESS},
