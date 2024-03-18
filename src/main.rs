@@ -1,25 +1,20 @@
 use std::net::TcpListener;
 
+use clap::Parser;
+use tracing::{error, info};
 use tracing_subscriber::filter::LevelFilter;
 
-use tracing::{info, error};
-
-use clap::Parser;
-
-mod patch_pe;
-
-#[cfg(target_os = "windows")]
 use {
-    winapi::um::handleapi::CloseHandle,
-    winapi::um::tlhelp32::{CreateToolhelp32Snapshot, Thread32First, Thread32Next, THREADENTRY32, TH32CS_SNAPTHREAD},
-    winapi::um::processthreadsapi::{OpenThread, ResumeThread},
-    winapi::um::winnt::{THREAD_QUERY_INFORMATION, THREAD_SUSPEND_RESUME},
-    winapi::shared::minwindef::DWORD,
-    std::process::Command,
-    std::os::windows::process::CommandExt,
-    winapi::um::winbase::{CREATE_SUSPENDED, DETACHED_PROCESS},
-    dll_syringe::Syringe,
     dll_syringe::process::{OwnedProcess, Process},
+    dll_syringe::Syringe,
+    std::os::windows::process::CommandExt,
+    std::process::Command,
+    winapi::shared::minwindef::DWORD,
+    winapi::um::handleapi::CloseHandle,
+    winapi::um::processthreadsapi::{OpenThread, ResumeThread},
+    winapi::um::tlhelp32::{CreateToolhelp32Snapshot, TH32CS_SNAPTHREAD, Thread32First, Thread32Next, THREADENTRY32},
+    winapi::um::winbase::{CREATE_SUSPENDED, DETACHED_PROCESS},
+    winapi::um::winnt::{THREAD_QUERY_INFORMATION, THREAD_SUSPEND_RESUME},
 };
 
 #[derive(Parser, Debug)]
@@ -33,7 +28,6 @@ struct Args {
 }
 
 fn main() {
-
     let subscriber = tracing_subscriber::fmt()
         .with_max_level(LevelFilter::DEBUG)
         .finish();
@@ -44,48 +38,36 @@ fn main() {
 
     let args = Args::parse();
 
+    const CREATE_FLAGS: u32 = CREATE_SUSPENDED | DETACHED_PROCESS;
+    const ZOO_PATH: &str = "C:\\Program Files (x86)\\Microsoft Games\\Zoo Tycoon\\zoo.exe";
+    let command: OwnedProcess = Command::new(ZOO_PATH).creation_flags(CREATE_FLAGS).spawn().unwrap().into();
+    info!("Process spawned");
 
-    #[cfg(target_os = "windows")]
-    {
-        info!("Windows");
-        const CREATE_FLAGS: u32 = CREATE_SUSPENDED | DETACHED_PROCESS;
-        const ZOO_PATH : &str = "C:\\Program Files (x86)\\Microsoft Games\\Zoo Tycoon\\zoo.exe";
-        let command: OwnedProcess = Command::new(ZOO_PATH).creation_flags(CREATE_FLAGS).spawn().unwrap().into();
-        info!("Process spawned");
+    let listener = TcpListener::bind("127.0.0.1:1492").unwrap();
 
-        let listener = TcpListener::bind("127.0.0.1:1492").unwrap();
+    let syringe = Syringe::for_process(command);
+    let _injected_payload = syringe.inject(args.dll_path).unwrap();
 
+    info!("Dll Injected");
 
-        let syringe = Syringe::for_process(command);
-        let _injected_payload = syringe.inject(args.dll_path).unwrap();
-
-        info!("Dll Injected");
-
-        if args.resume {
-            resume_threads(syringe.process().pid().unwrap().into());
-            info!("Thread Resumed");
-        }
-
-        if args.listen {
-            let mut stream = match listener.accept() {
-                Ok((stream, addr)) => {
-                    info!(%addr, "Accepted connection from");
-                    stream
-                },
-                Err(error) => panic!("Log stream failed to connect: {error}")
-            };
-            match std::io::copy(&mut stream, &mut std::io::stdout()) {
-                Ok(_) => (),
-                Err(e) => info!("Logging Stream Closed: {e}")
-            };
-        }
-
-    }
-    #[cfg(not(target_os = "windows"))]
-    {
-        info!("Not Windows");
+    if args.resume {
+        resume_threads(syringe.process().pid().unwrap().into());
+        info!("Thread Resumed");
     }
 
+    if args.listen {
+        let mut stream = match listener.accept() {
+            Ok((stream, addr)) => {
+                info!(%addr, "Accepted connection from");
+                stream
+            }
+            Err(error) => panic!("Log stream failed to connect: {error}")
+        };
+        match std::io::copy(&mut stream, &mut std::io::stdout()) {
+            Ok(_) => (),
+            Err(e) => info!("Logging Stream Closed: {e}")
+        };
+    }
 }
 
 
