@@ -19,7 +19,7 @@ use {
 
 #[derive(Parser, Debug)]
 struct Args {
-    #[arg(short, long, default_value = "true")]
+    #[arg(short, long, default_value = "false")]
     resume: bool,
     #[arg(short, long, default_value = "false")]
     listen: bool,
@@ -38,25 +38,44 @@ fn main() {
 
     let args = Args::parse();
 
+    info!("Starting OpenZT Loader with args: {:?}", args);
+
     const CREATE_FLAGS: u32 = CREATE_SUSPENDED | DETACHED_PROCESS;
     const ZOO_PATH: &str = "C:\\Program Files (x86)\\Microsoft Games\\Zoo Tycoon\\zoo.exe";
-    let command: OwnedProcess = Command::new(ZOO_PATH).creation_flags(CREATE_FLAGS).spawn().unwrap().into();
+    let command: OwnedProcess = match Command::new(ZOO_PATH).creation_flags(CREATE_FLAGS).spawn() {
+        Ok(command) => command.into(),
+        Err(e) => panic!("Failed to spawn process: {e}"),
+    };
+
     info!("Process spawned");
 
-    let listener = TcpListener::bind("127.0.0.1:1492").unwrap();
+    let listener = TcpListener::bind("127.0.0.1:1492");
+
+    if listener.is_err() {
+        error!("Failed to bind to port 1492: Log stream disabled");
+    }
 
     let syringe = Syringe::for_process(command);
-    let _injected_payload = syringe.inject(args.dll_path).unwrap();
+    match syringe.inject(args.dll_path) {
+        Ok(_) => (),
+        Err(e) => panic!("Failed to inject dll: {e}")
+    }
 
     info!("Dll Injected");
 
     if args.resume {
-        resume_threads(syringe.process().pid().unwrap().into());
+        // let Ok(process_pid) = syringe.process().pid() else {
+
+        // }
+        match syringe.process().pid() {
+            Ok(pid) => resume_threads(pid.into()),
+            Err(err) => error!("Failed to get process pid: {}", err)
+        }
         info!("Thread Resumed");
     }
 
-    if args.listen {
-        let mut stream = match listener.accept() {
+    if args.listen && listener.is_ok() {
+        let mut stream = match listener.unwrap().accept() {
             Ok((stream, addr)) => {
                 info!(%addr, "Accepted connection from");
                 stream
