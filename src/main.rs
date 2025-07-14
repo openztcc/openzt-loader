@@ -25,6 +25,8 @@ struct Args {
     listen: bool,
     #[arg(short, long, default_value = "target/i686-pc-windows-msvc/release/deps/openzt.dll")]
     dll_path: String,
+    #[arg(short, long, default_value = "C:\\Program Files (x86)\\Microsoft Games\\Zoo Tycoon\\zoo.exe")]
+    zoo_path: String
 }
 
 fn main() {
@@ -41,8 +43,7 @@ fn main() {
     info!("Starting OpenZT Loader with args: {:?}", args);
 
     const CREATE_FLAGS: u32 = CREATE_SUSPENDED | DETACHED_PROCESS;
-    const ZOO_PATH: &str = "C:\\Program Files (x86)\\Microsoft Games\\Zoo Tycoon\\zoo.exe";
-    let command: OwnedProcess = match Command::new(ZOO_PATH).creation_flags(CREATE_FLAGS).spawn() {
+    let command: OwnedProcess = match Command::new(args.zoo_path).creation_flags(CREATE_FLAGS).spawn() {
         Ok(command) => command.into(),
         Err(e) => panic!("Failed to spawn process: {e}"),
     };
